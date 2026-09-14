@@ -1,0 +1,26 @@
+@import "tailwindcss";
+
+:root {
+  --deep: #0F2E2B;
+  --cream: #F7F4EE;
+  --brick: #C9603C;
+  --sage: #5B7A6E;
+  --ink: #1A1A18;
+  --line: rgba(15, 46, 43, 0.12);
+}
+
+@theme inline {
+  --color-deep: var(--deep);
+  --color-cream: var(--cream);
+  --color-brick: var(--brick);
+  --color-sage: var(--sage);
+  --color-ink: var(--ink);
+  --font-serif: var(--font-fraunces);
+  --font-sans: var(--font-inter);
+}
+
+body {
+  background: var(--cream);
+  color: var(--ink);
+  font-family: var(--font-inter), sans-serif;
+}
