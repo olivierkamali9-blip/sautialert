@@ -8,9 +8,10 @@ type Signalement = {
   id: string;
   reference: string;
   categorie: string;
-  urgence: "faible" | "moyenne" | "critique";
+  urgence: "critique" | "elevee" | "moyenne" | "faible";
   statut: "nouveau" | "en_cours" | "resolu";
-  lieu: string | null;
+  localite: string | null;
+  zone_sante: string | null;
   langue: string;
   anonyme: boolean;
   resume: string;
@@ -18,11 +19,20 @@ type Signalement = {
 };
 
 const CATEGORIE_LABELS: Record<string, string> = {
-  distribution_incomplete: "Distribution incomplète",
-  conduite_staff: "Conduite du staff",
-  besoin_urgent: "Besoin urgent",
-  question_generale: "Question générale",
-  autre: "Autre",
+  demande_information: "Demande d'information",
+  demande_assistance: "Demande d'assistance",
+  insatisfaction_mineure: "Insatisfaction mineure",
+  insatisfaction_majeure: "Insatisfaction majeure",
+  violation_code_conduite: "Violation code de conduite",
+  allegation_abus: "Allégation d'abus (PSEA)",
+  commentaire_general: "Commentaire général",
+};
+
+const URGENCE_LABELS: Record<string, string> = {
+  critique: "Critique",
+  elevee: "Élevée",
+  moyenne: "Moyenne",
+  faible: "Faible",
 };
 
 const LANGUE_LABELS: Record<string, string> = {
@@ -75,14 +85,14 @@ export default function DashboardPage() {
 
   const filtered = tickets.filter((t) => {
     if (filter === "tous") return true;
-    if (filter === "urgent") return t.urgence === "critique";
+    if (filter === "urgent") return t.urgence === "critique" || t.urgence === "elevee";
     if (filter === "anonymes") return t.anonyme;
     return t.categorie === filter;
   });
 
   const stats = {
     total: tickets.length,
-    urgentsNonTraites: tickets.filter((t) => t.urgence === "critique" && t.statut !== "resolu").length,
+    urgentsNonTraites: tickets.filter((t) => (t.urgence === "critique" || t.urgence === "elevee") && t.statut !== "resolu").length,
     enCours: tickets.filter((t) => t.statut === "en_cours").length,
     resolus: tickets.filter((t) => t.statut === "resolu").length,
   };
@@ -150,9 +160,9 @@ export default function DashboardPage() {
         <div className="flex gap-2 mb-4">
           {[
             { key: "tous", label: "Tous" },
-            { key: "urgent", label: "Urgent" },
-            { key: "conduite_staff", label: "Conduite du staff" },
-            { key: "distribution_incomplete", label: "Distribution" },
+            { key: "urgent", label: "Critique / Élevé" },
+            { key: "allegation_abus", label: "Allégations d'abus" },
+            { key: "insatisfaction_majeure", label: "Insatisfaction majeure" },
             { key: "anonymes", label: "Anonymes" },
           ].map((f) => (
             <button
@@ -179,7 +189,7 @@ export default function DashboardPage() {
             <table className="w-full text-[13.5px]">
               <thead>
                 <tr className="text-left border-b border-deep/12">
-                  {["ID", "Catégorie", "Urgence", "Lieu", "Langue", "Statut", "Reçu"].map((h) => (
+                  {["ID", "Catégorie", "Urgence", "Zone de santé", "Localité", "Langue", "Statut", "Reçu"].map((h) => (
                     <th key={h} className="px-4 py-3 text-[11.5px] uppercase tracking-wide text-[#8a8a82] font-medium">
                       {h}
                     </th>
@@ -196,16 +206,19 @@ export default function DashboardPage() {
                         className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-0.5 rounded-full font-medium ${
                           t.urgence === "critique"
                             ? "bg-brick/12 text-brick"
+                            : t.urgence === "elevee"
+                            ? "bg-brick/8 text-brick"
                             : t.urgence === "moyenne"
                             ? "bg-sage/15 text-sage"
                             : "bg-deep/7 text-deep"
                         }`}
                       >
                         <span className="w-1.5 h-1.5 rounded-full bg-current" />
-                        {t.urgence === "critique" ? "Critique" : t.urgence === "moyenne" ? "Moyenne" : "Faible"}
+                        {URGENCE_LABELS[t.urgence] ?? t.urgence}
                       </span>
                     </td>
-                    <td className="px-4 py-3.5">{t.lieu || "—"}</td>
+                    <td className="px-4 py-3.5">{t.zone_sante || "—"}</td>
+                    <td className="px-4 py-3.5">{t.localite || "—"}</td>
                     <td className="px-4 py-3.5">{LANGUE_LABELS[t.langue] ?? t.langue}</td>
                     <td className="px-4 py-3.5">
                       <span

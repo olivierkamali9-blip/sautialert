@@ -19,10 +19,13 @@ export async function POST(req: Request) {
     const {
       categorie,
       urgence,
-      lieu,
+      localite,
+      zone_sante,
       langue,
       anonyme,
       nom_contact,
+      sexe,
+      age,
       contact_telephone,
       resume,
       transcript_complet,
@@ -43,12 +46,16 @@ export async function POST(req: Request) {
         reference,
         categorie,
         urgence,
-        lieu: lieu ?? null,
+        localite: localite ?? null,
+        zone_sante: zone_sante ?? null,
         langue,
         anonyme: anonyme ?? true,
         nom_contact: anonyme ? null : nom_contact ?? null,
+        sexe: sexe ?? null,
+        age: age ?? null,
         contact_telephone: anonyme ? null : contact_telephone ?? null,
         resume,
+        voie_depot: "agent_vocal",
         transcript_complet: transcript_complet ?? null,
       })
       .select()
@@ -58,7 +65,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "db_insert_failed", detail: error.message }, { status: 500 });
     }
 
-    // Alerte automatique si urgence critique
+    // Alerte automatique si urgence critique (violation code de conduite / abus, toujours critique)
     let alerteEnvoyee = false;
     const alertRecipient = process.env.MEAL_ALERT_EMAIL;
     if (urgence === "critique" && alertRecipient && process.env.RESEND_API_KEY) {
@@ -67,7 +74,7 @@ export async function POST(req: Request) {
           from: process.env.ALERT_FROM_EMAIL || "SautiAlert <alerts@resend.dev>",
           to: alertRecipient,
           subject: `🔴 Signalement critique — ${reference}`,
-          text: `Un signalement critique vient d'être enregistré.\n\nRéférence: ${reference}\nCatégorie: ${categorie}\nLieu: ${lieu || "non précisé"}\nLangue: ${langue}\n\nRésumé:\n${resume}\n\nConsultez le tableau de bord SautiAlert pour plus de détails.`,
+          text: `Un signalement critique vient d'être enregistré.\n\nRéférence: ${reference}\nCatégorie: ${categorie}\nLieu: ${localite || "non précisé"}\nZone de santé: ${zone_sante || "non précisée"}\nLangue: ${langue}\n\nDélai de réponse requis: 1 à 3 jours (priorité 1 - Critique)\n\nRésumé:\n${resume}\n\nConsultez le tableau de bord SautiAlert pour plus de détails.`,
         });
         alerteEnvoyee = true;
         await supabaseServer

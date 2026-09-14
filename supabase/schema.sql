@@ -4,15 +4,48 @@
 create table if not exists signalements (
   id uuid primary key default gen_random_uuid(),
   reference text unique not null, -- ex: SA-0142, généré côté app
-  categorie text not null, -- configurable, calibré plus tard sur la taxonomie FECONDE réelle
-  urgence text not null check (urgence in ('faible', 'moyenne', 'critique')),
-  statut text not null default 'nouveau' check (statut in ('nouveau', 'en_cours', 'resolu')),
-  lieu text,
-  langue text not null check (langue in ('francais', 'swahili', 'lingala')),
-  anonyme boolean not null default true,
-  nom_contact text, -- rempli seulement si anonyme = false
-  contact_telephone text, -- optionnel
+
+  -- Section 1 : détails du feedback (rempli par l'agent, jamais par le bénéficiaire)
+  categorie text not null, -- une des 7 catégories officielles FECONDE (categories_config.cle)
+  urgence text not null check (urgence in ('critique', 'elevee', 'moyenne', 'faible')), -- 4 niveaux officiels FECONDE
+  voie_depot text not null default 'agent_vocal', -- SautiAlert = nouvelle voie, à côté de Numéro vert, SMS, etc.
   resume text not null, -- résumé généré par le LLM
+  secteur_intervention text, -- ex: Protection de l'enfant — rempli seulement si mentionné
+  activite_concernee text, -- rempli seulement si mentionné
+  province text,
+  zone_sante text, -- ex: Fataki, Lita, Irumu — rempli seulement si mentionné
+  aire_sante text,
+  localite text,
+
+  -- Section 2 : informations du bénéficiaire (au choix de la personne, jamais forcé)
+  statut text not null default 'nouveau' check (statut in ('nouveau', 'en_cours', 'resolu')),
+  anonyme boolean not null default true,
+  nom_contact text, -- rempli seulement si anonyme = false ET mentionné
+  sexe text, -- rempli seulement si mentionné
+  age text, -- rempli seulement si mentionné
+  langue text not null check (langue in ('francais', 'swahili', 'lingala')),
+  type_beneficiaire text, -- rempli seulement si mentionné
+  souhaite_reponse_individuelle boolean,
+  canal_reponse_prefere text,
+  contact_telephone text,
+  details_contact_additionnels text,
+
+  -- Section 3 : traitement (rempli par l'équipe MEAL après coup, pas par l'agent)
+  referencement text,
+  refere_a text,
+  date_decision date,
+  type_reponse_requise text,
+
+  -- Section 4 : clôture (rempli par l'équipe MEAL)
+  date_cloture date,
+  action_prise text,
+  description_action text,
+  responsable_transmission text,
+  voie_transmission text,
+  satisfaction_client text,
+  commentaires_additionnels text,
+
+  -- Technique
   transcript_complet text, -- transcription intégrale de l'appel
   audio_url text, -- lien vers l'enregistrement audio (Supabase Storage)
   alerte_envoyee boolean not null default false,
@@ -34,18 +67,20 @@ create table if not exists categories_config (
   libelle_fr text not null,
   libelle_sw text,
   libelle_ln text,
-  urgence_defaut text not null default 'moyenne' check (urgence_defaut in ('faible', 'moyenne', 'critique')),
+  urgence_defaut text not null default 'moyenne' check (urgence_defaut in ('critique', 'elevee', 'moyenne', 'faible')),
   actif boolean not null default true,
   ordre integer default 0
 );
 
--- Catégories de départ (génériques, standard CHS — à remplacer/compléter par la taxonomie FECONDE)
+-- Catégories officielles FECONDE (Mécanisme de Gestion des Plaintes, projet MAPLE / Save the Children)
 insert into categories_config (cle, libelle_fr, urgence_defaut, ordre) values
-  ('distribution_incomplete', 'Distribution incomplète ou non reçue', 'moyenne', 1),
-  ('conduite_staff', 'Conduite du staff / abus (PSEA)', 'critique', 2),
-  ('besoin_urgent', 'Besoin urgent non couvert (santé, sécurité)', 'critique', 3),
-  ('question_generale', 'Question générale', 'faible', 4),
-  ('autre', 'Autre', 'faible', 5)
+  ('demande_information', 'Demande d''information', 'faible', 1),
+  ('demande_assistance', 'Demande d''assistance', 'moyenne', 2),
+  ('insatisfaction_mineure', 'Plainte programme — insatisfaction mineure', 'moyenne', 3),
+  ('insatisfaction_majeure', 'Plainte programme — insatisfaction majeure', 'elevee', 4),
+  ('violation_code_conduite', 'Violation du code de conduite FECONDE', 'critique', 5),
+  ('allegation_abus', 'Allégation d''abus ou d''exploitation (PSEA)', 'critique', 6),
+  ('commentaire_general', 'Commentaire général / autre', 'faible', 7)
 on conflict (cle) do nothing;
 
 -- Table utilisateurs équipe MEAL (accès dashboard)
