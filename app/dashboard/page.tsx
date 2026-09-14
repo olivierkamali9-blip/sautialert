@@ -113,7 +113,7 @@ export default function DashboardPage() {
           </div>
         </nav>
         <div className="mt-auto text-xs text-cream/45 border-t border-cream/15 pt-4">
-          FECONDE · Bunia
+          {process.env.NEXT_PUBLIC_ORG_NAME || "Votre organisation"}
           <br />
           {userEmail}
           <button onClick={handleLogout} className="block mt-3 text-cream/70 hover:text-cream underline">

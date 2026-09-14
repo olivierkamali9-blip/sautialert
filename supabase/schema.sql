@@ -6,8 +6,8 @@ create table if not exists signalements (
   reference text unique not null, -- ex: SA-0142, généré côté app
 
   -- Section 1 : détails du feedback (rempli par l'agent, jamais par le bénéficiaire)
-  categorie text not null, -- une des 7 catégories officielles FECONDE (categories_config.cle)
-  urgence text not null check (urgence in ('critique', 'elevee', 'moyenne', 'faible')), -- 4 niveaux officiels FECONDE
+  categorie text not null, -- une des 7 catégories standard (categories_config.cle)
+  urgence text not null check (urgence in ('critique', 'elevee', 'moyenne', 'faible')), -- 4 niveaux standard (échelle sectorielle humanitaire)
   voie_depot text not null default 'agent_vocal', -- SautiAlert = nouvelle voie, à côté de Numéro vert, SMS, etc.
   resume text not null, -- résumé généré par le LLM
   secteur_intervention text, -- ex: Protection de l'enfant — rempli seulement si mentionné
@@ -60,7 +60,7 @@ create index if not exists idx_signalements_statut on signalements(statut);
 create index if not exists idx_signalements_categorie on signalements(categorie);
 create index if not exists idx_signalements_created_at on signalements(created_at desc);
 
--- Table de configuration des catégories (pour permettre la calibration FECONDE sans toucher au code)
+-- Table de configuration des catégories (permet la calibration par organisation, sans toucher au code)
 create table if not exists categories_config (
   id uuid primary key default gen_random_uuid(),
   cle text unique not null, -- ex: "distribution_incomplete"
@@ -72,13 +72,13 @@ create table if not exists categories_config (
   ordre integer default 0
 );
 
--- Catégories officielles FECONDE (Mécanisme de Gestion des Plaintes, projet MAPLE / Save the Children)
+-- Catégories standard (mécanisme de gestion des plaintes, inspiré des standards sectoriels CHS/PSEA)
 insert into categories_config (cle, libelle_fr, urgence_defaut, ordre) values
   ('demande_information', 'Demande d''information', 'faible', 1),
   ('demande_assistance', 'Demande d''assistance', 'moyenne', 2),
   ('insatisfaction_mineure', 'Plainte programme — insatisfaction mineure', 'moyenne', 3),
   ('insatisfaction_majeure', 'Plainte programme — insatisfaction majeure', 'elevee', 4),
-  ('violation_code_conduite', 'Violation du code de conduite FECONDE', 'critique', 5),
+  ('violation_code_conduite', 'Violation du code de conduite', 'critique', 5),
   ('allegation_abus', 'Allégation d''abus ou d''exploitation (PSEA)', 'critique', 6),
   ('commentaire_general', 'Commentaire général / autre', 'faible', 7)
 on conflict (cle) do nothing;
