@@ -189,7 +189,7 @@ export default function DashboardPage() {
             <table className="w-full text-[13.5px]">
               <thead>
                 <tr className="text-left border-b border-deep/12">
-                  {["ID", "Catégorie", "Urgence", "Zone de santé", "Localité", "Langue", "Statut", "Reçu"].map((h) => (
+                  {["ID", "Résumé", "Catégorie", "Urgence", "Zone de santé", "Localité", "Langue", "Statut", "Reçu"].map((h) => (
                     <th key={h} className="px-4 py-3 text-[11.5px] uppercase tracking-wide text-[#8a8a82] font-medium">
                       {h}
                     </th>
@@ -200,6 +200,9 @@ export default function DashboardPage() {
                 {filtered.map((t) => (
                   <tr key={t.id} className="border-b border-deep/12 last:border-0 hover:bg-[#FAF9F5]">
                     <td className="px-4 py-3.5 text-[#8a8a82] text-xs">{t.reference}</td>
+                    <td className="px-4 py-3.5 min-w-[260px] max-w-[360px] whitespace-normal text-[#3a3a36] leading-relaxed">
+                      {t.resume}
+                    </td>
                     <td className="px-4 py-3.5">{CATEGORIE_LABELS[t.categorie] ?? t.categorie}</td>
                     <td className="px-4 py-3.5">
                       <span

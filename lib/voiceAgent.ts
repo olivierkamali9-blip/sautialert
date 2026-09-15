@@ -126,8 +126,7 @@ export class VoiceAgentClient {
   private audioContext: AudioContext | null = null;
   private processorNode: ScriptProcessorNode | null = null;
   private micStream: MediaStream | null = null;
-  private playbackQueue: Float32Array[] = [];
-  private isPlaying = false;
+  private nextPlayTime = 0;
   private callbacks: VoiceAgentCallbacks;
   private fullTranscript: string[] = [];
   private ticketCreated = false;
@@ -171,7 +170,7 @@ export class VoiceAgentClient {
               },
             },
             output: {
-              voice: "anna",
+              voice: "estelle",
               format: { encoding: "audio/pcm" },
             },
           },
@@ -358,7 +357,7 @@ export class VoiceAgentClient {
   }
 
   private enqueuePlayback(base64Audio: string) {
-    if (!this.audioContext) return;
+    if (!this.audioContext || this.audioContext.state === "closed") return;
     const binary = atob(base64Audio);
     const bytes = new Uint8Array(binary.length);
     for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
@@ -366,24 +365,24 @@ export class VoiceAgentClient {
     const float32 = new Float32Array(new ArrayBuffer(pcm16.length * 4));
     for (let i = 0; i < pcm16.length; i++) float32[i] = pcm16[i] / 0x8000;
 
-    this.playbackQueue.push(float32);
-    if (!this.isPlaying) this.playNext();
+    this.scheduleChunk(float32);
   }
 
-  private playNext() {
-    if (!this.audioContext || this.audioContext.state === "closed" || this.playbackQueue.length === 0) {
-      this.isPlaying = false;
-      return;
-    }
-    this.isPlaying = true;
-    const chunk = this.playbackQueue.shift()!;
+  private scheduleChunk(chunk: Float32Array) {
+    if (!this.audioContext || this.audioContext.state === "closed") return;
+
     const buffer = this.audioContext.createBuffer(1, chunk.length, 24000);
     buffer.copyToChannel(chunk as Float32Array<ArrayBuffer>, 0);
     const source = this.audioContext.createBufferSource();
     source.buffer = buffer;
     source.connect(this.audioContext.destination);
-    source.onended = () => this.playNext();
-    source.start();
+
+    // Planifie chaque morceau juste après le précédent, sans attendre "onended",
+    // pour éliminer les micro-coupures entre segments audio.
+    const now = this.audioContext.currentTime;
+    const startAt = Math.max(now, this.nextPlayTime);
+    source.start(startAt);
+    this.nextPlayTime = startAt + buffer.duration;
   }
 
   private scheduleAutoEnd() {
@@ -391,8 +390,10 @@ export class VoiceAgentClient {
     if (this.autoEndCheckInterval) return;
 
     this.autoEndCheckInterval = setInterval(() => {
-      // Attend que toute l'audio en attente ait fini de jouer avant de raccrocher
-      if (!this.isPlaying && this.playbackQueue.length === 0) {
+      // Attend que tout l'audio programmé ait fini de jouer avant de raccrocher
+      const audioFinished =
+        !this.audioContext || this.audioContext.currentTime >= this.nextPlayTime;
+      if (audioFinished) {
         if (this.autoEndCheckInterval) {
           clearInterval(this.autoEndCheckInterval);
           this.autoEndCheckInterval = null;
@@ -408,7 +409,7 @@ export class VoiceAgentClient {
       clearInterval(this.autoEndCheckInterval);
       this.autoEndCheckInterval = null;
     }
-    this.playbackQueue = [];
+    this.nextPlayTime = 0;
     this.ws?.send(JSON.stringify({ type: "session.end" }));
     this.ws?.close();
     this.processorNode?.disconnect();
