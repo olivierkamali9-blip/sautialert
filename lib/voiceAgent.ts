@@ -124,7 +124,7 @@ const TOOLS = [
 export class VoiceAgentClient {
   private ws: WebSocket | null = null;
   private audioContext: AudioContext | null = null;
-  private processorNode: ScriptProcessorNode | null = null;
+  private workletNode: AudioWorkletNode | null = null;
   private micStream: MediaStream | null = null;
   private nextPlayTime = 0;
   private callbacks: VoiceAgentCallbacks;
@@ -315,6 +315,13 @@ export class VoiceAgentClient {
   private async startMicStreaming() {
     try {
       this.audioContext = new AudioContext({ sampleRate: 24000 });
+
+      // Le navigateur peut suspendre l'AudioContext tant qu'aucun geste utilisateur
+      // direct ne l'a "débloqué" — s'assure qu'il tourne avant de continuer (important sur mobile).
+      if (this.audioContext.state === "suspended") {
+        await this.audioContext.resume();
+      }
+
       this.micStream = await navigator.mediaDevices.getUserMedia({
         audio: {
           channelCount: 1,
@@ -323,19 +330,44 @@ export class VoiceAgentClient {
         },
       });
 
-      const source = this.audioContext.createMediaStreamSource(this.micStream);
-      this.processorNode = this.audioContext.createScriptProcessor(4096, 1, 1);
+      // AudioWorklet : remplace l'ancien ScriptProcessorNode (déprécié et peu fiable
+      // sur certains navigateurs mobiles). Le processeur tourne sur un thread audio dédié.
+      const workletCode = `
+        class MicCaptureProcessor extends AudioWorkletProcessor {
+          process(inputs) {
+            const input = inputs[0];
+            if (input && input[0] && input[0].length > 0) {
+              this.port.postMessage(input[0].slice());
+            }
+            return true;
+          }
+        }
+        registerProcessor('mic-capture-processor', MicCaptureProcessor);
+      `;
+      const blob = new Blob([workletCode], { type: "application/javascript" });
+      const workletUrl = URL.createObjectURL(blob);
+      await this.audioContext.audioWorklet.addModule(workletUrl);
+      URL.revokeObjectURL(workletUrl);
 
-      this.processorNode.onaudioprocess = (e) => {
+      const source = this.audioContext.createMediaStreamSource(this.micStream);
+      this.workletNode = new AudioWorkletNode(this.audioContext, "mic-capture-processor");
+
+      this.workletNode.port.onmessage = (e: MessageEvent<Float32Array>) => {
         if (this.ws?.readyState !== WebSocket.OPEN) return;
-        const input = e.inputBuffer.getChannelData(0);
-        const pcm16 = this.floatTo16BitPCM(input);
+        const pcm16 = this.floatTo16BitPCM(e.data);
         const base64 = this.arrayBufferToBase64(pcm16.buffer);
         this.ws.send(JSON.stringify({ type: "input.audio", audio: base64 }));
       };
 
-      source.connect(this.processorNode);
-      this.processorNode.connect(this.audioContext.destination);
+      // Un noeud de gain à volume nul maintient le graphe audio "actif" (requis par
+      // certains navigateurs pour que le worklet continue de tourner) sans jouer
+      // la voix de l'utilisateur dans les haut-parleurs (évite l'écho).
+      const silentGain = this.audioContext.createGain();
+      silentGain.gain.value = 0;
+
+      source.connect(this.workletNode);
+      this.workletNode.connect(silentGain);
+      silentGain.connect(this.audioContext.destination);
     } catch (err) {
       this.callbacks.onError(
         "Impossible d'accéder au microphone. Vérifiez les autorisations du navigateur. (" +
@@ -420,7 +452,7 @@ export class VoiceAgentClient {
     this.nextPlayTime = 0;
     this.ws?.send(JSON.stringify({ type: "session.end" }));
     this.ws?.close();
-    this.processorNode?.disconnect();
+    this.workletNode?.disconnect();
     this.micStream?.getTracks().forEach((t) => t.stop());
     this.audioContext?.close();
   }
