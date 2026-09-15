@@ -159,8 +159,10 @@ export class VoiceAgentClient {
             input: {
               format: { encoding: "audio/pcm" },
               turn_detection: {
-                type: "server_vad",
                 vad_threshold: 0.5,
+                min_silence: 600,
+                max_silence: 1500,
+                interrupt_response: true,
               },
             },
             output: {
@@ -172,14 +174,32 @@ export class VoiceAgentClient {
       );
     };
 
-    this.ws.onmessage = (event) => this.handleMessage(JSON.parse(event.data));
+    this.ws.onmessage = (event) => {
+      const parsed = JSON.parse(event.data);
+      console.log("[SautiAlert] message reçu:", parsed.type, parsed);
+      this.handleMessage(parsed);
+    };
 
-    this.ws.onerror = () => {
+    this.ws.onerror = (event) => {
+      console.error("[SautiAlert] erreur WebSocket:", event);
       this.callbacks.onError("Erreur de connexion à l'agent vocal");
       this.callbacks.onStatusChange("error");
     };
 
-    this.ws.onclose = () => {
+    this.ws.onclose = (event) => {
+      console.log(
+        "[SautiAlert] connexion fermée — code:",
+        event.code,
+        "raison:",
+        event.reason || "(aucune raison fournie)",
+        "propre:",
+        event.wasClean
+      );
+      if (event.code !== 1000 && !event.reason) {
+        this.callbacks.onError(
+          `Connexion interrompue (code ${event.code}). Vérifiez la console pour plus de détails.`
+        );
+      }
       this.callbacks.onStatusChange("ended");
     };
   }
@@ -227,7 +247,10 @@ export class VoiceAgentClient {
 
       case "session.error":
       case "error":
-        this.callbacks.onError(msg.message || "Erreur inconnue");
+        console.error("[SautiAlert] session.error reçu:", msg);
+        this.callbacks.onError(
+          `Erreur agent: ${msg.message || msg.code || "erreur inconnue"}`
+        );
         break;
     }
   }
