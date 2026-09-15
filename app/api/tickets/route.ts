@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+function getResendClient(): Resend | null {
+  if (!process.env.RESEND_API_KEY) return null;
+  return new Resend(process.env.RESEND_API_KEY);
+}
 
 // Génère une référence lisible type SA-0142
 async function nextReference(): Promise<string> {
@@ -68,7 +71,8 @@ export async function POST(req: Request) {
     // Alerte automatique si urgence critique (violation code de conduite / abus, toujours critique)
     let alerteEnvoyee = false;
     const alertRecipient = process.env.MEAL_ALERT_EMAIL;
-    if (urgence === "critique" && alertRecipient && process.env.RESEND_API_KEY) {
+    const resend = getResendClient();
+    if (urgence === "critique" && alertRecipient && resend) {
       try {
         await resend.emails.send({
           from: process.env.ALERT_FROM_EMAIL || "SautiAlert <alerts@resend.dev>",
