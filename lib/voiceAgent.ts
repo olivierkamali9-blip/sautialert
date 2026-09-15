@@ -178,9 +178,17 @@ export class VoiceAgentClient {
       );
     };
 
+    const HIGH_FREQUENCY_TYPES = new Set([
+      "reply.audio",
+      "transcript.agent.delta",
+      "transcript.user.delta",
+    ]);
+
     this.ws.onmessage = (event) => {
       const parsed = JSON.parse(event.data);
-      console.log("[SautiAlert] message reçu:", parsed.type, parsed);
+      if (!HIGH_FREQUENCY_TYPES.has(parsed.type)) {
+        console.log("[SautiAlert] message reçu:", parsed.type, parsed);
+      }
       this.handleMessage(parsed);
     };
 

@@ -16,20 +16,35 @@ export default function VoiceOrb() {
   const [reference, setReference] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const clientRef = useRef<VoiceAgentClient | null>(null);
+  const liveTextTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingTextRef = useRef<string>("");
 
   useEffect(() => {
     return () => {
       clientRef.current?.disconnect();
+      if (liveTextTimerRef.current) clearTimeout(liveTextTimerRef.current);
     };
   }, []);
+
+  // Limite les mises à jour d'affichage à ~4 par seconde plutôt qu'à chaque
+  // micro-fragment reçu, pour ne pas surcharger le thread principal
+  // (qui doit aussi traiter l'audio en temps réel).
+  const throttledSetLiveText = (text: string) => {
+    pendingTextRef.current = text;
+    if (liveTextTimerRef.current) return;
+    liveTextTimerRef.current = setTimeout(() => {
+      setLiveText(pendingTextRef.current);
+      liveTextTimerRef.current = null;
+    }, 250);
+  };
 
   const handleStart = async () => {
     setErrorMsg(null);
     setReference(null);
     const client = new VoiceAgentClient({
       onStatusChange: setStatus,
-      onUserTranscript: (text) => setLiveText(text),
-      onAgentTranscript: (text) => setLiveText(text),
+      onUserTranscript: (text) => throttledSetLiveText(text),
+      onAgentTranscript: (text) => throttledSetLiveText(text),
       onTicketCreated: (ref) => setReference(ref),
       onError: (msg) => setErrorMsg(msg),
       onConversationComplete: () => setLiveText(""),
