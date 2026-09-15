@@ -105,8 +105,8 @@ export default function VoiceOrb() {
       )}
 
       <div className="relative w-[180px] h-[180px] mb-12 flex items-center justify-center">
-        <div className="absolute inset-0 rounded-full border border-deep/15" />
-        <div className="absolute -inset-[18px] rounded-full border border-deep/8" />
+        <div className="absolute inset-0 rounded-full border border-deep/15 pointer-events-none" />
+        <div className="absolute -inset-[18px] rounded-full border border-deep/8 pointer-events-none" />
         <button
           onClick={isActive ? handleStop : handleStart}
           className={`w-[116px] h-[116px] rounded-full bg-deep flex items-center justify-center shadow-[0_8px_30px_rgba(15,46,43,0.25)] transition-transform hover:scale-105 ${
