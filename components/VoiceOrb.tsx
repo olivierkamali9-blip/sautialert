@@ -32,6 +32,7 @@ export default function VoiceOrb() {
       onAgentTranscript: (text) => setLiveText(text),
       onTicketCreated: (ref) => setReference(ref),
       onError: (msg) => setErrorMsg(msg),
+      onConversationComplete: () => setLiveText(""),
     });
     clientRef.current = client;
     await client.connect();
@@ -141,7 +142,7 @@ export default function VoiceOrb() {
       {isActive && (
         <button
           onClick={handleStop}
-          className="text-xs text-[#8a8a82] underline mb-10 -mt-6"
+          className="bg-brick text-white text-sm font-semibold px-8 py-3.5 rounded-full mb-10 -mt-4 shadow-[0_4px_16px_rgba(201,96,60,0.35)] hover:opacity-90 transition-opacity"
         >
           Terminer la conversation
         </button>

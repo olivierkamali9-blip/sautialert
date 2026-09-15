@@ -17,6 +17,7 @@ export type VoiceAgentCallbacks = {
   onAgentTranscript: (text: string) => void;
   onTicketCreated: (reference: string) => void;
   onError: (message: string) => void;
+  onConversationComplete: () => void;
 };
 
 const ORG_NAME = process.env.NEXT_PUBLIC_ORG_NAME || "votre organisation";
@@ -129,6 +130,8 @@ export class VoiceAgentClient {
   private isPlaying = false;
   private callbacks: VoiceAgentCallbacks;
   private fullTranscript: string[] = [];
+  private ticketCreated = false;
+  private autoEndCheckInterval: ReturnType<typeof setInterval> | null = null;
 
   constructor(callbacks: VoiceAgentCallbacks) {
     this.callbacks = callbacks;
@@ -245,6 +248,9 @@ export class VoiceAgentClient {
 
       case "reply.done":
         this.callbacks.onStatusChange("listening");
+        if (this.ticketCreated) {
+          this.scheduleAutoEnd();
+        }
         break;
 
       case "session.error":
@@ -272,6 +278,7 @@ export class VoiceAgentClient {
         const data = await res.json();
 
         if (res.ok) {
+          this.ticketCreated = true;
           this.callbacks.onTicketCreated(data.reference);
           this.sendToolResult(
             msg.call_id,
@@ -379,7 +386,28 @@ export class VoiceAgentClient {
     source.start();
   }
 
+  private scheduleAutoEnd() {
+    // Évite de programmer plusieurs vérifications en parallèle
+    if (this.autoEndCheckInterval) return;
+
+    this.autoEndCheckInterval = setInterval(() => {
+      // Attend que toute l'audio en attente ait fini de jouer avant de raccrocher
+      if (!this.isPlaying && this.playbackQueue.length === 0) {
+        if (this.autoEndCheckInterval) {
+          clearInterval(this.autoEndCheckInterval);
+          this.autoEndCheckInterval = null;
+        }
+        this.callbacks.onConversationComplete();
+        this.disconnect();
+      }
+    }, 300);
+  }
+
   disconnect() {
+    if (this.autoEndCheckInterval) {
+      clearInterval(this.autoEndCheckInterval);
+      this.autoEndCheckInterval = null;
+    }
     this.playbackQueue = [];
     this.ws?.send(JSON.stringify({ type: "session.end" }));
     this.ws?.close();
