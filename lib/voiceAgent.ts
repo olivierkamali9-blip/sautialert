@@ -159,10 +159,8 @@ export class VoiceAgentClient {
             input: {
               format: { encoding: "audio/pcm" },
               turn_detection: {
+                type: "server_vad",
                 vad_threshold: 0.5,
-                min_silence: 700,
-                max_silence: 3000,
-                interrupt_response: true,
               },
             },
             output: {
@@ -276,24 +274,37 @@ export class VoiceAgentClient {
   }
 
   private async startMicStreaming() {
-    this.audioContext = new AudioContext({ sampleRate: 24000 });
-    this.micStream = await navigator.mediaDevices.getUserMedia({
-      audio: { channelCount: 1, sampleRate: 24000 },
-    });
+    try {
+      this.audioContext = new AudioContext({ sampleRate: 24000 });
+      this.micStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          channelCount: 1,
+          echoCancellation: true,
+          noiseSuppression: true,
+        },
+      });
 
-    const source = this.audioContext.createMediaStreamSource(this.micStream);
-    this.processorNode = this.audioContext.createScriptProcessor(4096, 1, 1);
+      const source = this.audioContext.createMediaStreamSource(this.micStream);
+      this.processorNode = this.audioContext.createScriptProcessor(4096, 1, 1);
 
-    this.processorNode.onaudioprocess = (e) => {
-      if (this.ws?.readyState !== WebSocket.OPEN) return;
-      const input = e.inputBuffer.getChannelData(0);
-      const pcm16 = this.floatTo16BitPCM(input);
-      const base64 = this.arrayBufferToBase64(pcm16.buffer);
-      this.ws.send(JSON.stringify({ type: "input.audio", audio: base64 }));
-    };
+      this.processorNode.onaudioprocess = (e) => {
+        if (this.ws?.readyState !== WebSocket.OPEN) return;
+        const input = e.inputBuffer.getChannelData(0);
+        const pcm16 = this.floatTo16BitPCM(input);
+        const base64 = this.arrayBufferToBase64(pcm16.buffer);
+        this.ws.send(JSON.stringify({ type: "input.audio", audio: base64 }));
+      };
 
-    source.connect(this.processorNode);
-    this.processorNode.connect(this.audioContext.destination);
+      source.connect(this.processorNode);
+      this.processorNode.connect(this.audioContext.destination);
+    } catch (err) {
+      this.callbacks.onError(
+        "Impossible d'accéder au microphone. Vérifiez les autorisations du navigateur. (" +
+          String(err) +
+          ")"
+      );
+      this.callbacks.onStatusChange("error");
+    }
   }
 
   private floatTo16BitPCM(input: Float32Array): Int16Array {
