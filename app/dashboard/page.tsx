@@ -67,6 +67,20 @@ export default function DashboardPage() {
     setLoading(false);
   }, []);
 
+  const handleDelete = async (id: string, reference: string) => {
+    const confirmed = window.confirm(
+      `Supprimer définitivement le signalement ${reference} ? Cette action est irréversible.`
+    );
+    if (!confirmed) return;
+
+    const res = await fetch(`/api/tickets/${id}`, { method: "DELETE" });
+    if (res.ok) {
+      setTickets((prev) => prev.filter((t) => t.id !== id));
+    } else {
+      alert("Erreur lors de la suppression. Réessayez.");
+    }
+  };
+
   useEffect(() => {
     supabaseBrowser.auth.getSession().then(({ data }) => {
       if (!data.session) {
@@ -189,7 +203,7 @@ export default function DashboardPage() {
             <table className="w-full text-[13.5px]">
               <thead>
                 <tr className="text-left border-b border-deep/12">
-                  {["ID", "Résumé", "Catégorie", "Urgence", "Zone de santé", "Localité", "Langue", "Statut", "Reçu"].map((h) => (
+                  {["ID", "Résumé", "Catégorie", "Urgence", "Zone de santé", "Localité", "Langue", "Statut", "Reçu", ""].map((h) => (
                     <th key={h} className="px-4 py-3 text-[11.5px] uppercase tracking-wide text-[#8a8a82] font-medium">
                       {h}
                     </th>
@@ -237,6 +251,15 @@ export default function DashboardPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3.5 text-[#6b6b64]">{timeAgo(t.created_at)}</td>
+                    <td className="px-4 py-3.5">
+                      <button
+                        onClick={() => handleDelete(t.id, t.reference)}
+                        className="text-xs text-[#8a8a82] hover:text-brick transition-colors"
+                        title="Supprimer ce signalement"
+                      >
+                        Supprimer
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
