@@ -77,6 +77,21 @@ export default function DashboardPage() {
     }
   };
 
+  const handleStatusChange = async (id: string, statut: Signalement["statut"]) => {
+    const previous = tickets;
+    setTickets((prev) => prev.map((t) => (t.id === id ? { ...t, statut } : t)));
+
+    const res = await fetch(`/api/tickets/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ statut }),
+    });
+    if (!res.ok) {
+      setTickets(previous);
+      alert("Erreur lors de la mise à jour du statut. Réessayez.");
+    }
+  };
+
   useEffect(() => {
     loadTickets();
   }, [loadTickets]);
@@ -197,8 +212,12 @@ export default function DashboardPage() {
                   <td className="px-4 py-3.5">{t.localite || "—"}</td>
                   <td className="px-4 py-3.5">{LANGUE_LABELS[t.langue] ?? t.langue}</td>
                   <td className="px-4 py-3.5">
-                    <span
-                      className={`text-xs font-medium ${
+                    <select
+                      value={t.statut}
+                      onChange={(e) =>
+                        handleStatusChange(t.id, e.target.value as Signalement["statut"])
+                      }
+                      className={`text-xs font-medium bg-transparent border-none outline-none cursor-pointer ${
                         t.statut === "nouveau"
                           ? "text-brick"
                           : t.statut === "en_cours"
@@ -206,8 +225,10 @@ export default function DashboardPage() {
                           : "text-[#8a8a82]"
                       }`}
                     >
-                      {t.statut === "nouveau" ? "Nouveau" : t.statut === "en_cours" ? "En cours" : "Résolu"}
-                    </span>
+                      <option value="nouveau">Nouveau</option>
+                      <option value="en_cours">En cours</option>
+                      <option value="resolu">Résolu</option>
+                    </select>
                   </td>
                   <td className="px-4 py-3.5 text-[#6b6b64]">{timeAgo(t.created_at)}</td>
                   <td className="px-4 py-3.5">
