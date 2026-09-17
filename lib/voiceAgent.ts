@@ -444,6 +444,43 @@ export class VoiceAgentClient {
     }, 300);
   }
 
+  // Point d'entrée pour une fin de conversation VOLONTAIRE (bouton "Terminer").
+  // Garantit qu'un signalement est toujours enregistré, même si l'agent n'a pas
+  // encore eu le temps d'appeler create_ticket lui-même — rien ne doit jamais se perdre.
+  async endConversation() {
+    if (!this.ticketCreated && this.fullTranscript.length > 0) {
+      try {
+        const userLines = this.fullTranscript
+          .filter((l) => l.startsWith("Utilisateur:"))
+          .map((l) => l.replace("Utilisateur: ", ""))
+          .join(" ");
+
+        const res = await fetch("/api/tickets", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            categorie: "commentaire_general",
+            urgence: "moyenne",
+            langue: "francais",
+            anonyme: true,
+            resume:
+              (userLines || "Conversation interrompue avant la fin.") +
+              " [Enregistré automatiquement — conversation terminée avant la fin normale, à recatégoriser si besoin.]",
+            transcript_complet: this.fullTranscript.join("\n"),
+          }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          this.ticketCreated = true;
+          this.callbacks.onTicketCreated(data.reference);
+        }
+      } catch (err) {
+        console.error("[SautiAlert] échec du ticket de secours:", err);
+      }
+    }
+    this.disconnect();
+  }
+
   disconnect() {
     if (this.autoEndCheckInterval) {
       clearInterval(this.autoEndCheckInterval);

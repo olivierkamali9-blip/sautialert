@@ -53,8 +53,9 @@ export default function VoiceOrb() {
     await client.connect();
   };
 
-  const handleStop = () => {
-    clientRef.current?.disconnect();
+  const handleStop = async () => {
+    setStatus("processing");
+    await clientRef.current?.endConversation();
     setStatus("idle");
     setLiveText("");
   };
