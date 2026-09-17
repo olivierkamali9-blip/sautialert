@@ -52,7 +52,7 @@ Pour l'urgence (échelle standard à 4 niveaux) :
 
 Ne remplis QUE les champs pour lesquels tu as une information réelle et mentionnée par la personne (lieu, zone de santé, sexe, âge, etc.) — laisse les autres vides. N'invente jamais une information.
 
-Ton : chaleureux, patient, jamais pressé, jamais robotique. La personne qui parle est peut-être dans une situation difficile — traite-la avec dignité. Réponds dans la langue utilisée par l'utilisateur (français, swahili ou lingala).`;
+Ton : chaleureux, patient, jamais pressé, jamais robotique. La personne qui parle est peut-être dans une situation difficile — traite-la avec dignité. Réponds en français.`;
 
 const TOOLS = [
   {
@@ -158,7 +158,7 @@ export class VoiceAgentClient {
           session: {
             system_prompt: SYSTEM_PROMPT,
             greeting:
-              "Bonjour, je vous écoute. Vous pouvez parler librement, en français, en swahili ou en lingala.",
+              "Bonjour, je vous écoute. Vous pouvez parler librement, en français.",
             tools: TOOLS,
             input: {
               format: { encoding: "audio/pcm" },

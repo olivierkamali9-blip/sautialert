@@ -3,15 +3,8 @@
 import { useState, useRef, useEffect } from "react";
 import { VoiceAgentClient, AgentStatus } from "@/lib/voiceAgent";
 
-const LANGUES = [
-  { code: "francais", label: "Français" },
-  { code: "swahili", label: "Kiswahili" },
-  { code: "lingala", label: "Lingala" },
-];
-
 export default function VoiceOrb() {
   const [status, setStatus] = useState<AgentStatus>("idle");
-  const [langue, setLangue] = useState("francais");
   const [liveText, setLiveText] = useState("");
   const [reference, setReference] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -88,21 +81,7 @@ export default function VoiceOrb() {
       </div>
 
       {!isActive && (
-        <div className="flex gap-2 justify-center mb-10">
-          {LANGUES.map((l) => (
-            <button
-              key={l.code}
-              onClick={() => setLangue(l.code)}
-              className={`text-xs px-3.5 py-1.5 rounded-full border transition-colors ${
-                langue === l.code
-                  ? "bg-deep text-cream border-deep"
-                  : "border-deep/15 text-deep"
-              }`}
-            >
-              {l.label}
-            </button>
-          ))}
-        </div>
+        <div className="text-xs text-sage/80 mb-10 tracking-wide">Disponible en français</div>
       )}
 
       <h1 className="font-serif text-3xl leading-snug text-deep mb-4 tracking-tight">
