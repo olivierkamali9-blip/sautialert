@@ -207,10 +207,17 @@ export class VoiceAgentClient {
         "propre:",
         event.wasClean
       );
-      if (event.code !== 1000 && !event.reason) {
+      const isUnexpected = event.code !== 1000 && !event.reason;
+      if (isUnexpected) {
         this.callbacks.onError(
           `Connexion interrompue (code ${event.code}). Vérifiez la console pour plus de détails.`
         );
+        // Coupure réseau ou autre interruption imprévue : on tente quand même
+        // d'enregistrer ce qui a été dit avant que tout ne soit perdu.
+        this.saveFallbackTicket().finally(() => {
+          this.callbacks.onStatusChange("ended");
+        });
+        return;
       }
       this.callbacks.onStatusChange("ended");
     };
@@ -444,40 +451,46 @@ export class VoiceAgentClient {
     }, 300);
   }
 
-  // Point d'entrée pour une fin de conversation VOLONTAIRE (bouton "Terminer").
-  // Garantit qu'un signalement est toujours enregistré, même si l'agent n'a pas
-  // encore eu le temps d'appeler create_ticket lui-même — rien ne doit jamais se perdre.
-  async endConversation() {
-    if (!this.ticketCreated && this.fullTranscript.length > 0) {
-      try {
-        const userLines = this.fullTranscript
-          .filter((l) => l.startsWith("Utilisateur:"))
-          .map((l) => l.replace("Utilisateur: ", ""))
-          .join(" ");
+  // Enregistre un signalement de secours à partir de la transcription brute,
+  // si l'agent n'a pas eu le temps d'appeler create_ticket lui-même.
+  // Appelée à la fois pour une fin volontaire ET pour toute coupure inattendue
+  // (réseau instable, etc.) — rien ne doit jamais se perdre.
+  private async saveFallbackTicket() {
+    if (this.ticketCreated || this.fullTranscript.length === 0) return;
 
-        const res = await fetch("/api/tickets", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            categorie: "commentaire_general",
-            urgence: "moyenne",
-            langue: "francais",
-            anonyme: true,
-            resume:
-              (userLines || "Conversation interrompue avant la fin.") +
-              " [Enregistré automatiquement — conversation terminée avant la fin normale, à recatégoriser si besoin.]",
-            transcript_complet: this.fullTranscript.join("\n"),
-          }),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          this.ticketCreated = true;
-          this.callbacks.onTicketCreated(data.reference);
-        }
-      } catch (err) {
-        console.error("[SautiAlert] échec du ticket de secours:", err);
+    try {
+      const userLines = this.fullTranscript
+        .filter((l) => l.startsWith("Utilisateur:"))
+        .map((l) => l.replace("Utilisateur: ", ""))
+        .join(" ");
+
+      const res = await fetch("/api/tickets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          categorie: "commentaire_general",
+          urgence: "moyenne",
+          langue: "francais",
+          anonyme: true,
+          resume:
+            (userLines || "Conversation interrompue avant la fin.") +
+            " [Enregistré automatiquement — conversation interrompue avant la fin normale (fin manuelle ou coupure réseau), à recatégoriser si besoin.]",
+          transcript_complet: this.fullTranscript.join("\n"),
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        this.ticketCreated = true;
+        this.callbacks.onTicketCreated(data.reference);
       }
+    } catch (err) {
+      console.error("[SautiAlert] échec du ticket de secours:", err);
     }
+  }
+
+  // Point d'entrée pour une fin de conversation VOLONTAIRE (bouton "Terminer").
+  async endConversation() {
+    await this.saveFallbackTicket();
     this.disconnect();
   }
 
@@ -488,7 +501,7 @@ export class VoiceAgentClient {
     }
     this.nextPlayTime = 0;
     this.ws?.send(JSON.stringify({ type: "session.end" }));
-    this.ws?.close();
+    this.ws?.close(1000, "conversation_ended");
     this.workletNode?.disconnect();
     this.micStream?.getTracks().forEach((t) => t.stop());
     this.audioContext?.close();
